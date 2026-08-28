@@ -8,8 +8,6 @@ image:
   alt: RedLine Infostealer analysis
 ---
 
-![RedLine Infostealer](/assets/img/redline-infostealer-analysis/cover.png)
-
 ## Executive Summary
 
 A result of analyze a 32-bit Windows executable that functions as a multi-stage loader for a .NET credential and cryptocurrency-wallet stealer. The sample uses process hollowing against `AppLaunch.exe`, a legitimate signed Microsoft .NET utility, to execute its payload under the identity of a trusted binary.
@@ -37,10 +35,6 @@ For defenders, the highest-confidence detection opportunity is behavioral rather
 | Sections | 11 | 3 (`.text`, `.rsrc`, `.reloc`) |
 | Image base | `0x400000` | `0x400000` |
 | Entry point | `0xa15da9` | `0x1adca` (managed token `0x6000047`) |
-
-## Infection Chain
-
-one two
 
 ## Technical Analysis
 
