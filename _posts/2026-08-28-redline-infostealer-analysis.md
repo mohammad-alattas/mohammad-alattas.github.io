@@ -27,8 +27,8 @@ For defenders, the highest-confidence detection opportunity is behavioral rather
 | Attribute | Loader (Stage 1) | Payload (Stage 2) |
 |---|---|---|
 | SHA-256 | `5b08fb68dd6eaa0fd5ad1dbe4811dc24facd42c51131e6d2ca946f39626900ea` | `514767bb66d0595bf8d68747970e14622f92e60e1e8637af80508945f0171a90` |
-| SHA-1 | *[to be added]* | `50b63a6a01a0328549e0c98276c1ce252056421d` |
-| MD5 | *[to be added]* | `edb50a13766a91ce11b63ec449f5f90d` |
+| SHA-1 | `8ab345ce69b81ffa81bc1eba13892fbae8d4bc6c` | `50b63a6a01a0328549e0c98276c1ce252056421d` |
+| MD5 | `692d0ae039b3f97f30761a722d3138e0` | `edb50a13766a91ce11b63ec449f5f90d` |
 | Type | PE32 executable | PE32 .NET assembly (IL-only) |
 | Size | ~6.9 MB virtual | 109,568 bytes (reconstructed) |
 | Compiler | MinGW/GCC | .NET Framework v4.0.30319 |
@@ -60,11 +60,11 @@ Stage 1 - Loader
 | Attribute | Loader (Stage 1) | 
 |---|---|---|
 | SHA-256 | `5b08fb68dd6eaa0fd5ad1dbe4811dc24facd42c51131e6d2ca946f39626900ea` | 
-| SHA-1 | *[to be added]* | `50b63a6a01a0328549e0c98276c1ce252056421d` |
-| MD5 | *[to be added]* | `edb50a13766a91ce11b63ec449f5f90d` |
-| Type | PE32 executable | PE32 .NET assembly (IL-only) |
-| Size | ~6.9 MB virtual | 109,568 bytes (reconstructed) |
-| Compiler | MinGW/GCC | .NET Framework v4.0.30319 |
+| SHA-1 | `8ab345ce69b81ffa81bc1eba13892fbae8d4bc6c` |
+| MD5 | `692d0ae039b3f97f30761a722d3138e0`  |
+| Type | PE32 executable  |
+| Size | ~6.9 MB virtual  |
+| Compiler | MinGW/GCC  |
 | Sections | 11 |
 | Image base | `0x400000` |
 | Entry point | `0xa15da9` | 
@@ -73,7 +73,7 @@ The file have a invalid digital signature, it’s singed primary by “ESET, spo
 
 ![RedLine analysis](/assets/img/redline-infostealer-analysis/img-01.png)
 
-Static Analysis
+## Static Analysis
 
 We will start our analysis with String or floss (which I prefer) to see the content of this sample from outside then we will dig deep later on and try to understand what this sample hide:
 
@@ -403,89 +403,3 @@ falsepositives:
 level: high
 ```
 
-## 
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-15.png)
-
-Decoding `NtWriteVirtualMemory(ProcessHandle, BaseAddress, Buffer, NumberOfBytesToWrite, *Written)`:
-
-- `[esp]` = `0x76a92f3f` → return address (in kernelbase — this came through `WriteProcessMemory`, which wraps `NtWriteVirtualMemory`; normal)
-- `[esp+4]` = `0x00020b28` → **ProcessHandle** — a real handle (not `0xFFFFFFFF`), so this writes into **another process** (the child)
-- `[esp+8]` = `0x04ef61e8` → **BaseAddress** (destination in the child)
-- `[esp+0xC]` = `0x00cae224` → **Buffer** (source, in the parent — this is what we read)
-- `[esp+0x10]` = `0x00000004` → **4 bytes**
-- `[esp+0x14]` = `0x00000000`
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-13.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-14.png)
-
-Source:
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-16.png)
-
-Destination:
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-17.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-18.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-38.png)
-
-size = 20000
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-19.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-20.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-21.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-22.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-23.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-24.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-25.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-26.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-27.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-28.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-29.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-30.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-31.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-32.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-33.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-39.png)
-
-After Fix table:
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-40.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-41.png)
-
-Before fix table:
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-42.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-43.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-44.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-45.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-02.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-04.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-05.png)
-
-![RedLine analysis](/assets/img/redline-infostealer-analysis/img-46.png)
