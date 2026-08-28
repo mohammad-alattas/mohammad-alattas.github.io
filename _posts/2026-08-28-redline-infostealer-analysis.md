@@ -4,11 +4,11 @@ date: 2026-08-28 12:00:00 +0300
 categories: [Malware Analysis, Infostealers]
 tags: [redline, process-hollowing, dotnet, static-analysis, dynamic-analysis, threat-intelligence, yara, sigma]
 image:
-  path: /assets/img/posts/redline-infostealer-analysis/cover.png
+  path: /assets/img/redline-infostealer-analysis/cover.png
   alt: RedLine Infostealer analysis
 ---
 
-![RedLine Infostealer](/assets/img/posts/redline-infostealer-analysis/cover.png)
+![RedLine Infostealer](/assets/img/redline-infostealer-analysis/cover.png)
 
 ## Executive Summary
 
@@ -77,25 +77,25 @@ Stage 1 - Loader
 
 The file have a invalid digital signature, it’s singed primary by “ESET, spol. s r. o.” on Monday, May 23, 2022  and nested details of its countersignature (timestamp) “DigiCert Timestamp 2022 -2” as shown in the digital signature details
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-01.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-01.png)
 
 Static Analysis
 
 We will start our analysis with String or floss (which I prefer) to see the content of this sample from outside then we will dig deep later on and try to understand what this sample hide:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-02.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-02.png)
 
 From here we can see some catchy long base64 encoded strings and if we try to decode it we will see:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-03.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-03.png)
 
 these are crypto wallets addresses in different crypto vendors such as (YoroiWallet, Tronlink, iWallet, etc.).
 
 Also we can see readable strings *wallet*, Yandex, net.tcp://, base64 encoded string that i couldn’t decoded now (later we will see how to decode it): 
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-04.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-04.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-05.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-05.png)
 
 And also an API subdomain for IP check website, which usually will used to check wither the local or remote IP if it’s working or not.
 
@@ -103,11 +103,11 @@ And also an API subdomain for IP check website, which usually will used to check
 
 First thing we will notice about this malware sample are the unstandardized sections (in total 11):
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-06.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-06.png)
 
 And the entry point start from the customize section “(vl0=” where the malware packed as shown in DieNet this section had a high entropy:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-07.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-07.png)
 
 which indicator of packing.
 
@@ -143,28 +143,28 @@ WriteProcessMemory
 
 so we will set a break points on all the mentioned imports pattern, that will help us through our analysis.
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-08.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-08.png)
 
 since we think of process hollowing let’s also open the process explorer to detect any spawning for a new process.
 
 After many running we will know where the unpacking activity happened easily since in this sample the unpacking process takes a lot of time, after that we can see the first interesting step that malware will stop at in our analysis which is “GetProcAddress” and this api actually takes two arguments a handle to module and process name (Handle of Module, 
 Get Procedure Address):
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-09.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-09.png)
 
 So let’s check the arguments panel in debugger:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-10.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-10.png)
 
 Which resolving the address of `VirtualProtect` out of kerenel32. The more interesting is the stack panel which shows the process name clearly:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-11.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-11.png)
 
 This show us clearly the target process path that the malware which to inject their malicious code into.
 
 let’s understand how VirtualProtect works based on the official Microsoft API documentation. 
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-12.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-12.png)
 
 Decoding the `VirtualProtect(lpAddress, dwSize, flNewProtect, lpflOldProtect)` args:
 
@@ -175,13 +175,13 @@ Decoding the `VirtualProtect(lpAddress, dwSize, flNewProtect, lpflOldProtect)` a
 
 This help us to understand that the target process which we can see in the stack is “AppLaunch.exe”. Moving forward to our next breakpoint, we will see it will stop at `NtWriteVirtualMemory` :
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-13.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-13.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-14.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-14.png)
 
 at the end of “NtWriteVirtualMemory” we can check the process hacker and we will find that “AppLanucher.exe” is already exist and be herisented from our malware:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-15.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-15.png)
 
 Decoding `NtWriteVirtualMemory(ProcessHandle, BaseAddress, Buffer, NumberOfBytesToWrite, *Written)`:
 
@@ -200,11 +200,11 @@ Also if we want to check the source and destination now to see the malware that 
 
 Source:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-16.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-16.png)
 
 Destination:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-17.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-17.png)
 
 In the source we can see clearly the “MZ” which is the well known magic byte for the Portable Executable beside of the DOS message and we can know that this is a executable code.
 
@@ -212,7 +212,7 @@ NOTE: it’s not recommended to export the executable at this stage otherwise yo
 
 we can also reach to the area in the debugger through “Memory Map”:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-18.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-18.png)
 
 As we can see it’s located at “0x01360000” with size “0x00020000” with permission ERW (Execution, Read, Write).
 
@@ -220,25 +220,25 @@ Network Analysis
 
 before we move on I stopped here to run “Fakenet” which is a tool emulate DNS server to detect any network traffic interaction, so before the malware executed we can see any network activity the malware do:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-19.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-19.png)
 
 After we establish our “fake” DNS server we can move on in the debugger and see suspicious network connections from the malware sample toward the IP “62.204.41[.]163” on port  “137”:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-20.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-20.png)
 
 And if we have check the properties from process hacker (TCP/IP), we can see the local address for our VM, and remote address that the malware try to reach to:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-21.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-21.png)
 
 Extract the malware core
 
 In this step we will use “Hollowing Hunter” tool to detect and extract the malware sample from the target process “AppLanch.exe”:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-22.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-22.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-23.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-23.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-24.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-24.png)
 
 NOTE: I have tried to extract the sample in two ways: -
 
@@ -256,55 +256,55 @@ Yes of course, we can but we need to take in our consideration the points that w
 However, if we check the sample with any static analysis tool we can see clearly it’s “.NET” file. So what is the best than dnspy to handle it, let’s open it and see what this sample try to hide:
  
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-25.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-25.png)
 
 First thing we can notice that the name of the sample is “Gruntling” which is the given name by the malware author.
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-26.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-26.png)
 
 On the side we can see in a plain text the name of the functions and most of them contains some well known VPN’s executable names such as (ProtonVPN, OpenVPN, NordApp) also Discord.
 
 After play around with these functions, one of them was very interesting one which is “Arguments” and it contains (IP, ID, Key) and blank message, and from the context we can see base64 encoded string we tried to decode before in first step:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-27.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-27.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-28.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-28.png)
 
 But it didn’t work, so i was thinking, wait we have a key, let’s try something simple like “XOR” for example and add the key:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-29.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-29.png)
 
 And another base64 appear, so let’s add another base64 in cyberchef:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-30.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-30.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-31.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-31.png)
 
 here we go, this is the same IP that the malware tried to connect to during execution and we detect that using “fakenet”.
 
 I used the same to the ID to see what it contains and we found “fhac3254” which is appear to be the ID of the malware sample since most of these malware used in MaaS market: 
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-32.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-32.png)
 
 Another interesting function was “BrEx” which contains array with base64 encoded string which is the one we saw before during the first step (contains wallets addresses):
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-33.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-33.png)
 
 Until this point I will stop the investigation since RedLine is well known infostealer it collect credential, wallets, , etc. and we all know RedLine capabilities, but one thing before we go, let’s check the dumped sample in Virustotal and see the result
 
 I have used the private scan feature (only exist in enterprise version) to ensure that the sample doesn’t shown publicly (in case it’s not submitted before):
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-34.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-34.png)
 
 As we can see the file wasn’t submitted before, so it’s and from the detection page it matched with a lot of “RedLine” YARA rules:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-35.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-35.png)
 
 from the network information, we can see the connection that was able to spot which is to the IP (62.204.41[.]163) with 15 detection and port 33457 and country HK categorized as C2.
 
 From the lookup overview breakdown by region, we can identify that this sample speared in US, China, and South Korea in the first place.
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-36.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-36.png)
 
 also it connect with 157 other malware samples most of them also a redline, if we want to dig deep we can start check these samples and identify the other indicators that connect them together which will give us the capabilities to uncover more information about the attacker.
 
@@ -312,7 +312,7 @@ In URL section we can identify some of malicious DLL files downloaded from the a
 
  
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-37.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-37.png)
 
 Summary
 
@@ -411,7 +411,7 @@ level: high
 
 ## 
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-15.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-15.png)
 
 Decoding `NtWriteVirtualMemory(ProcessHandle, BaseAddress, Buffer, NumberOfBytesToWrite, *Written)`:
 
@@ -422,76 +422,76 @@ Decoding `NtWriteVirtualMemory(ProcessHandle, BaseAddress, Buffer, NumberOfBytes
 - `[esp+0x10]` = `0x00000004` → **4 bytes**
 - `[esp+0x14]` = `0x00000000`
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-13.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-13.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-14.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-14.png)
 
 Source:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-16.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-16.png)
 
 Destination:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-17.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-17.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-18.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-18.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-38.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-38.png)
 
 size = 20000
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-19.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-19.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-20.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-20.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-21.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-21.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-22.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-22.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-23.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-23.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-24.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-24.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-25.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-25.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-26.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-26.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-27.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-27.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-28.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-28.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-29.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-29.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-30.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-30.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-31.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-31.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-32.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-32.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-33.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-33.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-39.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-39.png)
 
 After Fix table:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-40.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-40.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-41.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-41.png)
 
 Before fix table:
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-42.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-42.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-43.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-43.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-44.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-44.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-45.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-45.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-02.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-02.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-04.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-04.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-05.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-05.png)
 
-![RedLine analysis](/assets/img/posts/redline-infostealer-analysis/img-46.png)
+![RedLine analysis](/assets/img/redline-infostealer-analysis/img-46.png)
