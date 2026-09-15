@@ -1,6 +1,6 @@
 ---
 title: "Hiding in plain batch: Inside the SAMA Multi-Stage XWorm Loader C2"
-date: 2026-09-15 09:00:00 +0300
+date: 2026-09-15 03:00:00 +0300
 categories: [Malware Analysis, Loaders]
 tags: [xworm, dll-side-loading, batch-loader, powershell, fileless, dotnet, static-analysis, threat-intelligence, sigma, yara]
 image:
