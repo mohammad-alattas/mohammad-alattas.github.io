@@ -104,49 +104,24 @@ This is the DLL that `AdobeARM.exe` is tricked into loading. It **impersonates t
 
 ### Malware Analysis
 
-The genuine Microsoft `SensApi.dll` beside the attacker's copy, note the 32-bit header, the 2026 compile stamp and the extra sections in the copy:
-
-![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-03.png)
-
-From the sections we can observed 8 unkown vlaues in the `.rsrc` section which is the resource section. We will see the impact of this in the dynamic analysis during `loadresource` api call.
-
-![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-04.png)
-
-Section and resource layout — the non-standard `.fptable` section and roughly 2 MB of high-entropy `RT_RCDATA` split into 262,144-byte blobs:
-
-![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-05.png)
-
-![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-06.png)
-
-Imports — 93 implicit `KERNEL32.dll` entries and nothing else; every other API is resolved by hand at runtime:
-
-![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-07.png)
-
-bcrypt.dll being pulled in by name inside the signed host process — the load that comes just before the resource is decrypted:
-
-![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-30.png)
-
-The embedded resource coming apart in the debugger — `BCryptDecrypt` called on the high-entropy blob, and the decrypted buffer in memory:
-
-![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-08.png)
-
-![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-09.png)
-
-Capabilities flagged at runtime by the API-signature plugin — resource extraction, process creation, mutex, registry, thread and memory operations:
+Before we dig deep into Analyzer the malware sample we will check their Capabilities flagged at runtime by the APISignature plugin resource extraction, process creation, mutex, registry, thread and memory operations:
 
 ![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-10.png)
 
-Mutex handling — the rule hit first, then the live `CreateMutexW` call with the name `Local\CC7CE79A6BD9423F`:
+Based on APISignature we can see clearly the malware have 48 capabilities such as:
+
+Mutex handling the rule hit first, then the live `CreateMutexW` call with the name `Local\CC7CE79A6BD9423F`:
 
 ![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-11.png)
 
 ![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-12.png)
 
-Registry reconnaissance APIs:
+ 
+ Registry reconnaissance APIs:
 
 ![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-13.png)
 
-Resource extraction — the `FindResourceW` signature, the matching rule hit, and the breakpoints firing in the live process:
+Resource extraction the `FindResourceW` signature, the matching rule hit, and the breakpoints firing in the live process:
 
 ![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-14.png)
 
@@ -156,11 +131,45 @@ Resource extraction — the `FindResourceW` signature, the matching rule hit, an
 
 Runtime API resolution through `GetProcAddress`:
 
-![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-17.png)
-
 ![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-18.png)
 
 ![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-19.png)
+
+So before even run the malware we can have great understanding for their capabilities and understand the analysis path.
+
+
+The genuine Microsoft `SensApi.dll` beside the attacker's copy, note the 32-bit header, the 2026 compile stamp and the extra sections in the copy:
+
+The Original `SensApi.dll`:
+![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-03.png)
+
+The Malicious `SensApi.dll`:
+![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-04.png)
+
+Section and resource layout — the non-standard `.fptable` section and roughly 2 MB of high-entropy `RT_RCDATA` split into 262,144-byte blobs:
+
+![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-05.png)
+
+![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-06.png)
+
+In the 2 images above, the sections we can observed 8 unkown vlaues in the `.rsrc` section which is the resource section. We will see the impact of this in the dynamic analysis during `loadresource` api call.
+
+Imports Address Table (IAT) 93 implicit `KERNEL32.dll` entries and nothing else, every other API is resolved by hand at runtime:
+
+![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-07.png)
+
+bcrypt.dll being pulled in by name inside the signed host process, the load that comes just before the resource is decrypted:
+
+![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-30.png)
+
+The embedded resource coming apart in the debugger `BCryptDecrypt` called on the high-entropy blob, and the decrypted buffer in memory:
+
+![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-08.png)
+
+![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-09.png)
+
+
+
 
 The host process the DLL lands in, with PowerShell as its child:
 
@@ -178,7 +187,7 @@ The host process the DLL lands in, with PowerShell as its child:
 | Detections | **21 / 71** malicious |
 | Suggested label | `trojan.draftor/abrisk` |
 
-Pestudio's VirusTotal view for the copy we analysed — 32-bit DLL, `SENS Connectivity` version metadata, no certificate:
+Pestudio's VirusTotal view for the copy we analysed 32-bit DLL, `SENS Connectivity` version metadata, no certificate:
 
 ![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-21.png)
 
@@ -188,7 +197,8 @@ What the intelligence sources confirm about this file:
 - The `.rsrc` section is roughly **2 MB of high-entropy `RT_RCDATA`** (entropy ≈ 8.0), which is where the encrypted payload/config is carried; a non-standard `.fptable` section was flagged as packing.
 - `capa` reports Base64 + XOR + ADD/XOR/SUB custom encoding, **runtime API resolution** via `GetProcAddress`, **PE-header parsing / section enumeration** (self-unpacking / reflective-load behaviour), mutex handling, file read/write/copy, and environment/privilege queries.
 - In a **standalone** detonation (renamed `init.dll`, run via `rundll32 …,#1`) the DLL read its own image, resolved APIs from unbacked memory, and then crashed under WerFault — i.e. it is built to run as part of the full chain, not on its own.
-- Its own contacted infrastructure in isolation was limited to a **`162.159.36.2:53/UDP`** Cloudflare DNS lookup. The malicious C2 beacon (§ below) appears only in the full-archive detonation, not from this member alone.
+- Its own contacted infrastructure in isolation was limited to a **`162.159.36[.]2:53/UDP`** Cloudflare DNS lookup. The malicious C2 beacon (§ below) appears only in the full-archive detonation, not from this member alone.
+
 ---
 
 ## 3. ENTITY-Kbat_0909267uvr09-09.bat — The Multi-Stage Loader
@@ -207,13 +217,13 @@ This is the heart of the archive, and where we spent most of our time. It is a *
 | Type | DOS batch, ASCII, CRLF, 380 lines (up to ~6,000 chars/line) |
 | Internal family name | **"KARMO"** (self-named via `KARMO_DEBUG`, `KARMO_HANDOFF_DETACH`, `KARMO_PE_*` variables) |
 
-The filename on disk is its own SHA-256 — the tell-tale sign of a hash-named sample pulled from a sandbox, USB, or AV quarantine.
+The filename on disk is its own SHA-256 the tell-tale sign of a hash-named sample pulled from a sandbox, USB, or AV quarantine.
 
 #### How it hides: obfuscation
 
 The batch script is built to be unreadable by a human and unmatchable by a signature. A few techniques do most of the work:
 
-- **String splicing.** Every meaningful string is assembled at runtime from 2-character slices of longer decoy strings. For example `SystemRoot` is never written literally — it's stitched together from a junk variable:
+- **String splicing.** Every meaningful string is assembled at runtime from 2-character slices of longer decoy strings. For example `SystemRoot` is never written literally, it's stitched together from a junk variable:
 
   ```bat
   set "DSWY=mG6hSystEaQgemF9nXcRSBr3xoo_8Dtglh"
@@ -231,17 +241,17 @@ The most elegant trick is the **environment-variable pointer table**: the PowerS
 Reduced to plain language, the chain runs like this:
 
 1. **Batch bootstrap** resolves the path to `powershell.exe` (with a WOW64 `sysnative` fallback) and pulls the first blob out of itself with the `findstr` trick.
-2. **PowerShell is launched once** and asked to run two script blocks straight from environment variables — nothing touches disk:
+2. **PowerShell is launched once** and asked to run two script blocks straight from environment variables, nothing touches disk:
    ```
    powershell -NoProfile -Command "&(NewScriptBlock $env:OQQXIIA);&(NewScriptBlock $env:MWBREA)"
    ```
 3. **Stage 1** re-reads the batch file, finds its blob, hex-decodes it and subtracts a key (**101**) to produce a small generic **XOR loader**.
 4. **Stage 2** is that reusable XOR loader. Guided by the pointer table it decodes, in turn: a **guard stub** (single-instance mutex + console hiding), a **re-spawner** that relaunches PowerShell with `CREATE_BREAKAWAY_FROM_JOB` to escape sandbox job-objects, and finally the **module-extractor**.
-5. **The module-extractor** reads all the embedded blobs, checks each one's length and SHA-256 against the manifest, and hands control to the orchestrator — all in-process, in the current runspace.
-6. **The BOOT orchestrator** scrubs the environment down to a 30-name allow-list (erasing its own breadcrumbs), does an **anti-sandbox process sweep**, decrypts every module, and runs the host module.
+5. **The module-extractor** reads all the embedded blobs, checks each one's length and SHA256 against the manifest, and hands control to the orchestrator — all in-process, in the current runspace.
+6. **The BOOT orchestrator** scrubs the environment down to a 30 name allow-list (erasing its own breadcrumbs), does an **anti-sandbox process sweep**, decrypts every module, and runs the host module.
 7. **The host module** disables AMSI, rebuilds a custom **in-memory .NET assembly** with `Reflection.Emit` (never `Assembly.Load`, so nothing hits disk), and calls into it to launch the native PE loader and payload.
 
-The re-spawned PowerShell — the command line built by the loader's own `CreateProcessW` call, and the process as it appears on the host, parent already gone:
+The re-spawned PowerShell, the command line built by the loader's own `CreateProcessW` call, and the process as it appears on the host, parent already gone:
 
 ![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-22.png)
 
@@ -291,8 +301,8 @@ The loader is defensive at almost every step:
 - **Sandbox process sweep:** it kills small instances of `choice`, `msiexec`, `SearchProtocolHost`, `backgroundTaskHost`, `gpupdate`, `prevhost`, `dllhost` (the helper processes automated sandboxes spin up), then sleeps 5 seconds.
 - **Job-object escape:** re-spawns PowerShell with `CREATE_BREAKAWAY_FROM_JOB | CREATE_NEW_CONSOLE` via a hand-built `CreateProcessW` P/Invoke.
 - **AMSI bypass:** flips `amsiInitFailed` to `true` and nulls the AMSI context/session so script content stops being scanned.
-- **Fileless:** every stage is a PowerShell script block or a `Reflection.Emit` assembly — nothing malicious is written to disk in a runnable form.
-- **Debugger / VM checks** *are present* in the host module (checks for `IsAttached`, `Wireshark/procmon/x64dbg/…`, and VMware/VirtualBox/QEMU/Xen manufacturer strings) but are **gated behind an options flag that is switched off in this build** — a compile-time variant setting. Worth knowing they can be turned on in another build.
+- **Fileless:** every stage is a PowerShell script block or a `Reflection.Emit` assembly, nothing malicious is written to disk in a runnable form.
+- **Debugger / VM checks** *are present* in the host module (checks for `IsAttached`, `Wireshark/procmon/x64dbg/…`, and VMware/VirtualBox/QEMU/Xen manufacturer strings) but are **gated behind an options flag that is switched off in this build** — a compile time variant setting. Worth knowing they can be turned on in another build.
 
 #### Persistence
 
@@ -305,9 +315,9 @@ Persistence is the one place the loader does touch disk. It copies itself to a h
 
 The persistence stage also **cleans up prior variants of itself** (old startup-folder `.cmd`/`.bin` files, a `CLSID` key, stray `.ps1`/`.vbs` droppers), which strongly suggests this malware is designed to be **updated in place** across campaigns.
 
-#### Dynamic evidence (full-archive detonation)
+#### Dynamic evidence (full archive detonation)
 
-The loader's own handoff log — `pld_ready` with the payload mapped at `0x17D60000`, then the hollowing step returning `HR=0x00000001`:
+The loader's own handoff log  `pld_ready` with the payload mapped at `0x17D60000`, then the hollowing step returning `HR=0x00000001`:
 
 ![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-24.png)
 
@@ -331,26 +341,26 @@ Where the static pass stops (at the encrypted `PLD`), the intelligence sources p
 
 **Final payload (in-memory).** The sandbox extracted two 32-bit VB.NET PE images from memory during the run — the actual payload the whole chain exists to deliver:
 
-| Internal name | SHA-256 | Detections | Label |
+| Internal name | SHA256 | Detections | Label |
 |---|---|---|---|
 | `ENTITY-Kbat.exe` | `189c85ade5e3bb132c88f925ef7cddc94d20bcef4fe5a6e6a7af9940b5e419cd` | 36/71 | `trojan.msil/basic`, popular name **xworm** |
 | `ENTITY-K2.exe` | `fe0e087c1ff8453b14b672158a7bf4d9e8f29d6929bf1feabafa00390d8f104c` | 37/71 | `trojan.msil/basic`, popular name **xworm** |
 
 Both carry the product name "ENTITY" (company falsely "Microsoft") and the internal branding **"ENTITYClient101."**
 
-**Command & Control.** In the full-archive detonation the chain beaconed to:
+**Command & Control.** In the full archive detonation the chain beaconed to:
 
 | Indicator | Detail |
 |---|---|
 | **`130.94.59.139:7000/TCP`** | Primary C2. Snort fired *"MALWARE-CNC Win.Infostealer.XWorm variant communication."* |
 | Hosting | ASN **154177**, AS owner **LIGHT NODE LIMITED** (LightNode VPS), country **SA (Saudi Arabia)**, IP first seen 2026-08-14, VT reputation currently 0/89 (fresh, not yet widely flagged) |
-| `162.159.36.2:53/UDP` | Cloudflare public DNS lookup — infrastructure, not malicious |
+| `162.159.36.2:53/UDP` | Cloudflare public DNS lookup, infrastructure, not malicious |
 
-The beacon as captured on the host — `choice.exe` (PID 6804) reconnecting to the C2:
+The beacon as captured on the host  `choice.exe` (PID 6804) reconnecting to the C2:
 
 ![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-29.png)
 
-**Targeting.** The Saudi-hosted C2 combined with the **government-entity** lure branding indicates a **campaign aimed at Saudi Arabian targets**, most likely through a government customer-service pretext *(medium-high confidence, inferred from lure branding + hosting geography).*
+**Targeting.** The Saudi-hosted C2 combined with the **government-entity** lure branding indicates a **campaign aimed at Saudi Arabian targets**, most likely through a government customer service pretext *(medium-high confidence, inferred from lure branding + hosting geography).*
 
 ---
 
