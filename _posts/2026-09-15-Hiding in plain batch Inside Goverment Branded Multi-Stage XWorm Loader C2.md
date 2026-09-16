@@ -16,7 +16,7 @@ This analysis looks at a malicious archive, `ENTITY.zip`, that delivers a multi-
 
 The archive follows a pattern that keeps coming back in modern crimeware: a **legitimately signed binary, a side-loaded malicious DLL, and a huge obfuscated batch loader** all shipped together. Each piece has a job. The signed executable gives the chain a trusted face, the DLL rides in on that trust through search-order hijacking, and the batch file carries the real payload — encrypted, encoded, and reassembled entirely at runtime so that almost nothing malicious is visible on disk.
 
-When the chain runs it ends in **fileless, in-memory execution** of a VB.NET payload family the author branded **"ENTITY" / "ENTITYClient101"**, whose capabilities (screen and webcam capture, synthetic input, sockets, AES crypto, WMI/registry recon) line up with an infostealer / remote-access trojan. A crowdsourced Snort rule classified the live traffic as an **XWorm-variant infostealer C2**, beaconing to **`130.94.59.139:7000/TCP`**, hosted in Saudi Arabia.
+When the chain runs it ends in **fileless, in-memory execution** of a VB.NET payload family the author branded **"ENTITY" / "ENTITYClient101"**, whose capabilities (screen and webcam capture, synthetic input, sockets, AES crypto, WMI/registry recon) line up with an infostealer / remote-access trojan. A crowdsourced Snort rule classified the live traffic as an **XWorm-variant infostealer C2**, beaconing to **`130.94.59[.]139:7000/TCP`**, hosted in Saudi Arabia.
 
 In this part we walk the three archive members and go deep on the batch loader, which turned out to be the most interesting component: a self-decoding, self-verifying, seven-module in-memory loader that the author internally calls **"KARMO."**
 
@@ -25,7 +25,7 @@ In this part we walk the three archive members and go deep on the batch loader, 
 - Signed **`AdobeARM.exe`** (clean) + fake-Microsoft **`SensApi.dll`** (malicious) = a classic DLL side-loading pair.
 - The **~933 KB `.bat`** is a full **fileless multi-stage loader** that stores its own encrypted payloads inside itself and uses **environment variables as a pointer table** between stages.
 - Final payloads are VB.NET assemblies internally named **`ENTITY-Kbat.exe` / `ENTITY-K2.exe`** ("ENTITYClient101"), injected fileless into living-off-the-land processes.
-- **C2:** `130.94.59.139:7000/TCP` (LightNode, ASN 154177, country **SA**); Snort labelled the traffic **XWorm**.
+- **C2:** `130.94.59[.]139:7000/TCP` (LightNode, ASN 154177, country **SA**); Snort labelled the traffic **XWorm**.
 - Persistence via **HKCU Run** keys and a **hidden scheduled task**, executed through the signed `conhost.exe --headless` LOLBin.
 
 ## Sample Information (Archive)
@@ -61,7 +61,7 @@ ENTITY.zip
                                     ──►  decrypts + verifies 7 embedded modules
                                     ──►  runs them fileless in-memory
                                     ──►  injects the VB.NET "ENTITY" payload into LOLBins
-                                    ──►  beacon to 130.94.59.139:7000  (XWorm C2)
+                                    ──►  beacon to 130.94.59[.]139:7000  (XWorm C2)
 ```
 
 Two independent execution paths (the side-loading pair and the batch loader) converge on the same fileless .NET payload and the same persistence artifacts.
@@ -352,9 +352,9 @@ Both carry the product name "ENTITY" (company falsely "Microsoft") and the inter
 
 | Indicator | Detail |
 |---|---|
-| **`130.94.59.139:7000/TCP`** | Primary C2. Snort fired *"MALWARE-CNC Win.Infostealer.XWorm variant communication."* |
+| **`130.94.59[.]139:7000/TCP`** | Primary C2. Snort fired *"MALWARE-CNC Win.Infostealer.XWorm variant communication."* |
 | Hosting | ASN **154177**, AS owner **LIGHT NODE LIMITED** (LightNode VPS), country **SA (Saudi Arabia)**, IP first seen 2026-08-14, VT reputation currently 0/89 (fresh, not yet widely flagged) |
-| `162.159.36.2:53/UDP` | Cloudflare public DNS lookup, infrastructure, not malicious |
+| `162.159.36[.]2:53/UDP` | Cloudflare public DNS lookup, infrastructure, not malicious |
 
 The beacon as captured on the host `choice.exe` (PID 6804) reconnecting to the C2:
 
