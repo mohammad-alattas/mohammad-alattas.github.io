@@ -13,7 +13,6 @@ image:
 This analysis looks at a malicious archive, `ENTITY.zip`, that delivers a multi-stage Windows infostealer/RAT. The lure impersonates the **"customer services"** branding of a government entity: the same brand is carried through the archive name, the loader filename, and the in-memory implants. Together with a Saudi-hosted command-and-control server, that branding points to a campaign aimed at Saudi users.
 
 **Note on naming.** The archive, the loader and the in-memory implants all carry the brand of the government entity this campaign impersonates. That brand is replaced with the placeholder `ENTITY` throughout this write-up — e.g. `ENTITY.zip`, `ENTITY-Kbat.exe`, "ENTITYClient101" — while hashes and all other indicators are reproduced unmodified.
-{: .prompt-info }
 
 The archive follows a pattern that keeps coming back in modern crimeware: a **legitimately signed binary, a side-loaded malicious DLL, and a huge obfuscated batch loader** all shipped together. Each piece has a job. The signed executable gives the chain a trusted face, the DLL rides in on that trust through search-order hijacking, and the batch file carries the real payload — encrypted, encoded, and reassembled entirely at runtime so that almost nothing malicious is visible on disk.
 
@@ -116,7 +115,6 @@ Mutex handling the rule hit first, then the live `CreateMutexW` call with the na
 
 ![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-12.png)
 
- 
  Registry reconnaissance APIs:
 
 ![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-13.png)
@@ -137,7 +135,6 @@ Runtime API resolution through `GetProcAddress`:
 
 So before even run the malware we can have great understanding for their capabilities and understand the analysis path.
 
-
 The genuine Microsoft `SensApi.dll` beside the attacker's copy, note the 32-bit header, the 2026 compile stamp and the extra sections in the copy:
 
 The Original `SensApi.dll`:
@@ -146,7 +143,7 @@ The Original `SensApi.dll`:
 The Malicious `SensApi.dll`:
 ![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-04.png)
 
-Section and resource layout — the non-standard `.fptable` section and roughly 2 MB of high-entropy `RT_RCDATA` split into 262,144-byte blobs:
+Section and resource layout — the non-standard `.fptable` section and roughly 2 MB of high-entropy `RT_RCDATA` split into 262,144-byte blobs in `.rsrc`:
 
 ![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-05.png)
 
@@ -247,7 +244,7 @@ Reduced to plain language, the chain runs like this:
    ```
 3. **Stage 1** re-reads the batch file, finds its blob, hex-decodes it and subtracts a key (**101**) to produce a small generic **XOR loader**.
 4. **Stage 2** is that reusable XOR loader. Guided by the pointer table it decodes, in turn: a **guard stub** (single-instance mutex + console hiding), a **re-spawner** that relaunches PowerShell with `CREATE_BREAKAWAY_FROM_JOB` to escape sandbox job-objects, and finally the **module-extractor**.
-5. **The module-extractor** reads all the embedded blobs, checks each one's length and SHA256 against the manifest, and hands control to the orchestrator — all in-process, in the current runspace.
+5. **The module-extractor** reads all the embedded blobs, checks each one's length and SHA256 against the manifest, and hands control to the orchestrator all in-process, in the current runspace.
 6. **The BOOT orchestrator** scrubs the environment down to a 30 name allow-list (erasing its own breadcrumbs), does an **anti-sandbox process sweep**, decrypts every module, and runs the host module.
 7. **The host module** disables AMSI, rebuilds a custom **in-memory .NET assembly** with `Reflection.Emit` (never `Assembly.Load`, so nothing hits disk), and calls into it to launch the native PE loader and payload.
 
@@ -283,7 +280,7 @@ Once the orchestrator runs, seven modules are lifted out of the file, each verif
 | **HCS** | the managed host assembly (`HOI1` blob) | exposes `MPHDFG.DVYXYVASXG::Run(...)` |
 | **HBT** | native "boot" PE stub | custom 16-letter-alphabet encoding, starts with `MZ` |
 | **RSC** | native x64 PE loader | Base64 + **AES-256-CBC** + GZip → 247,808-byte PE |
-| **PLD** | final implant / config blob | 451,904 bytes, entropy 8.0, **no PE header** |
+| **PLD** | final implant / config blob | 106KB, entropy 8.0, **no PE header** |
 
 The AES key material for `RSC` is itself XOR-obfuscated in the script; recovered, it is:
 
@@ -298,7 +295,7 @@ The loader is defensive at almost every step:
 
 - **Single-instance & handoff:** a mutex `Local\SBMSRCXZUY` and an event `Local\SBMSRCXZUYe` coordinate the stages.
 - **Console hiding:** `FreeConsole` + `ShowWindow(SW_HIDE)` + `SetWindowPos(HWND_BOTTOM)`.
-- **Sandbox process sweep:** it kills small instances of `choice`, `msiexec`, `SearchProtocolHost`, `backgroundTaskHost`, `gpupdate`, `prevhost`, `dllhost` (the helper processes automated sandboxes spin up), then sleeps 5 seconds.
+- **Sandbox process sweep:** it kills small instances of `choice`, `msiexec`, `SearchProtocolHost`, `backgroundTaskHost`, `gpupdate`, `prevhost`, `dllhost` (the helper processes automated sandboxes spin up), then sleeps 5 seconds, to prepare later to inject a new `choice.exe` process.
 - **Job-object escape:** re-spawns PowerShell with `CREATE_BREAKAWAY_FROM_JOB | CREATE_NEW_CONSOLE` via a hand-built `CreateProcessW` P/Invoke.
 - **AMSI bypass:** flips `amsiInitFailed` to `true` and nulls the AMSI context/session so script content stops being scanned.
 - **Fileless:** every stage is a PowerShell script block or a `Reflection.Emit` assembly, nothing malicious is written to disk in a runnable form.
@@ -362,9 +359,35 @@ The beacon as captured on the host  `choice.exe` (PID 6804) reconnecting to the 
 
 **Targeting.** The Saudi-hosted C2 combined with the **government-entity** lure branding indicates a **campaign aimed at Saudi Arabian targets**, most likely through a government customer service pretext *(medium-high confidence, inferred from lure branding + hosting geography).*
 
+Using Censys Threat Intelligence website I found out the host name `WIN-9QFKHJ39QE9`, and IP is hosted in Saudi Arabia AS154177 (Light4-AS-AP - LIGHT NODE LIMITED):
+![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/Censys1.png)
+
+The host have 6 in total services (135/DCERPC, 139/NETBIOS, 445/SMB, 3389/RDP, 5985/HTTP, 47001/HTTP).
+
+What attract my attention is that RDP remote access is public on port 3389 as shown in the screenshot available in Censys:
+![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/Censys2.png)
+
+Later on, I tried to povit to another host with some attributes similarity could be detected during Censys scan through the internet:
+
+![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/Censys3_investigation.png)
+
+but unfortunately, there are not nich similarity, since it lead to at least 4K other hosts.  
+
+However, I tried to scan the payload extracted from the pervious step from `choice.exe` with VT private scan, and found out it wasn't detected before:
+
+![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/VT_Payload.png)
+
+In `similar files` section I found 5 others files, they are also payload uploaded before, the oldest one uploaded in `2026-08-22`:
+
+![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/VT_Payload_Similar.png)
+
+all the 5 samples (first 5 in the image above) have the exatly same size `106KB` and their Export Address Table `EAT` are the same and contains only one API Call `ClrBoot`:
+
+![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/VT_Payload_EAT.png)
+
 ---
 
-## MITRE ATT&CK Mapping (loader + chain)
+## 4. MITRE ATT&CK Mapping (loader + chain)
 
 | Tactic | Technique | ID | Evidence |
 |---|---|---|---|
@@ -379,7 +402,7 @@ The beacon as captured on the host  `choice.exe` (PID 6804) reconnecting to the 
 | Defense Evasion | Impair Defenses: Disable Tools | T1562.001 | AMSI bypass (`amsiInitFailed`) |
 | Defense Evasion | Virtualization/Sandbox Evasion | T1497.001 | VM/debugger checks (present, disabled in this build); sandbox process sweep |
 | Defense Evasion | Hide Artifacts: Hidden Window / Files | T1564.003, T1564.001 | `conhost --headless`; Hidden+System files |
-| Defense Evasion | Process Injection | T1055 | (dynamic) EXE written to `msiexec.exe`; RunPE into `choice.exe` |
+| Defense Evasion | Process Injection | T1055 | (dynamic) DLL written to `choice,exe` |
 | Persistence | Registry Run Keys / Startup Folder | T1547.001 | `ClrUsageTrim_EATI` |
 | Persistence | Scheduled Task/Job | T1053.005 | `\CompatCatalog_CNVK` |
 | Command & Control | Application Layer / Encrypted Channel | T1071, T1573 | (dynamic) TCP beacon; in-memory crypto |
@@ -387,7 +410,7 @@ The beacon as captured on the host  `choice.exe` (PID 6804) reconnecting to the 
 
 ---
 
-## Detection & IOCs
+## 5. Detection & IOCs
 
 ### Host artifacts (high confidence)
 
@@ -414,9 +437,17 @@ DNS  162[.]159[.]36[.]2 : 53/UDP       (Cloudflare resolver — benign infrastru
 Archive     6745899253115a295a86554127264a1d76e24f4aa2d6f2879e7284b1538b53ad  ENTITY.zip
 Loader      94407c7291a95e6e5e49d54aa998cf034e2fb0d0d5af8778900034decf872d73  ENTITY-Kbat_…​.bat
 Side DLL    766fe987b73f77d3e4fb5ca07aa5392993451d3cefdda293ba92443e1a6f268a  SensApi.dll (malicious)
+Payload     79d241533e8e0d816690d9f0ca05c7dfe8a90acf18ac90f7f8413f7fde128fab  injected in choice.exe (in-mem)
 Payload     189c85ade5e3bb132c88f925ef7cddc94d20bcef4fe5a6e6a7af9940b5e419cd  ENTITY-Kbat.exe (in-mem)
 Payload     fe0e087c1ff8453b14b672158a7bf4d9e8f29d6929bf1feabafa00390d8f104c  ENTITY-K2.exe (in-mem)
-(clean)     69469a3b807d8751966a3d6cd78f17c8b368a6760718805997e751e3ab2b3eed  AdobeARM.exe — DO NOT BLOCK
+(clean)     69469a3b807d8751966a3d6cd78f17c8b368a6760718805997e751e3ab2b3eed  AdobeARM.exe — DO NOT BLOC
+Payload     efc7250dcf5c72983a98bd987731b8bbdffac55705acad169935db11b9dc24a9  File with high similarity find in VT
+Payload     7946c8dcd555e3a58127895383099003667e2c1c796cef5106c3d1686d1b80a2  File with high similarity find in VT
+Payload     4906d8497b13fb2bd4f74687f25d7a5422242777fac3a67517925020faf19529  File with high similarity find in VT
+Payload     be575d7bf0acac4a4b915206f81afcc2b7bfd180ac29e189e91771624ec34665  File with high similarity find in VT
+Payload     8859052299c3af84a60e7dae86c59e633f05f288ca810cfc43ef18b441f20850  File with high similarity find in VT
+
+
 ```
 
 ### Sigma — headless conhost launching a cached CMD
@@ -462,7 +493,7 @@ level: high
 
 ---
 
-## Closing
+## 6. Closing
 
 `ENTITY.zip` is a tidy example of how commodity crimeware layers trust and obfuscation to get a fileless RAT running on a target. A signed Adobe binary provides cover, a fake system DLL rides in behind it, and a 933 KB batch file quietly reassembles, verifies, and executes seven encrypted modules entirely in memory before injecting an XWorm-family stealer and beaconing to fresh Saudi-hosted infrastructure. The lure and the hosting both point squarely at Saudi users.
 
