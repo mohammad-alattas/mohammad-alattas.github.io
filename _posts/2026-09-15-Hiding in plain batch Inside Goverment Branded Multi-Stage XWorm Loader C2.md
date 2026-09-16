@@ -161,6 +161,8 @@ bcrypt.dll being pulled in by name inside the signed host process, the load that
 
 The embedded resource coming apart in the debugger `BCryptDecrypt` called on the high-entropy blob, and the decrypted buffer in memory:
 
+![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/Load_bcryptdll.png)
+
 ![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-08.png)
 
 ![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-09.png)
@@ -329,6 +331,10 @@ What that step produced — `choice.exe` detected as a hollowed process, then th
 The whole chain on the host, console host included:
 
 ![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/img-28.png)
+
+And `msiexec.exe` execute `choice.exe`:
+
+![Government-branded XWorm loader analysis](/assets/img/government-branded-xworm-loader/msi.png)
 
 ### 3.2 Threat Intelligence
 
